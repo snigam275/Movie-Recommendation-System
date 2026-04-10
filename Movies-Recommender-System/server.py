@@ -55,14 +55,15 @@ def fetch_tmdb_details(movie_id, title="Unknown"):
         "poster": FALLBACK_POSTER, "rating": None, "genres": [],
         "overview": "", "year": "", "runtime": "",
     }
-    if not TMDB_KEY:
-        return default
     try:
         try:
+            if not TMDB_KEY or getattr(app, 'tmdb_blocked', False):
+                raise ValueError("Skipping TMDB")
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_KEY}"
-            resp = session.get(url, timeout=12)
+            resp = session.get(url, timeout=2)
             status = resp.status_code
         except Exception:
+            app.tmdb_blocked = True
             status = 500
 
         omdb_data = None  # Lazy-load OMDB
@@ -158,20 +159,11 @@ def api_featured():
             break
         mid = popular_ids[idx]
         title = popular_titles[idx]
-        if not TMDB_KEY:
-            featured.append({
-                "title": title,
-                "backdrop": FALLBACK_POSTER,
-                "rating": None,
-                "year": "",
-                "runtime": "",
-                "genres": [],
-                "overview": "",
-            })
-            continue
         try:
+            if not TMDB_KEY or getattr(app, 'tmdb_blocked', False):
+                raise ValueError("Skipping TMDB")
             url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={TMDB_KEY}"
-            resp = session.get(url, timeout=12)
+            resp = session.get(url, timeout=2)
             if resp.status_code != 200:
                 raise ValueError("TMDB failed")
             data = resp.json()
