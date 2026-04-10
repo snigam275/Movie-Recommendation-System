@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineVibe — Recommendations</title>
+    <meta name="description" content="Get personalized movie recommendations powered by AI.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="recommend-page">
+    <!-- Drifting Poster Wall Background (same as landing) -->
+    <div class="poster-wall-wrap rec-wall-wrap">
+        <div class="poster-wall rec-wall" id="recPosterWall"></div>
+    </div>
+    <div class="rec-gradient-overlay"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/" class="logo">
+            <span class="logo-text">CINEVIBE</span>
+            <span class="logo-dot"></span>
+        </a>
+        <div class="nav-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">
+                <span class="icon-moon">🌙</span>
+                <span class="icon-sun" style="display:none;">☀️</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Search -->
+    <section class="search-section">
+        <div class="search-wrapper">
+            <input
+                type="text"
+                id="searchInput"
+                class="search-input"
+                placeholder="Search a movie you love..."
+                autocomplete="off"
+            >
+            <button class="dropdown-toggle" id="dropdownToggle" title="Browse all movies">▼</button>
+            <div class="search-dropdown" id="searchDropdown"></div>
+        </div>
+    </section>
+
+    <!-- Selected Movie Info -->
+    <section class="selected-movie" id="selectedMovie" style="display:none;">
+        <div class="selected-poster" id="selectedPoster"></div>
+        <div class="selected-info">
+            <h2 id="selectedTitle"></h2>
+            <div class="selected-meta" id="selectedMeta"></div>
+            <div class="selected-genres" id="selectedGenres"></div>
+            <p class="selected-overview" id="selectedOverview"></p>
+        </div>
+    </section>
+
+    <!-- Controls: Genre + Count + Recommend -->
+    <section class="controls-bar" id="controlsBar" style="display:none;">
+        <div class="controls-inner">
+            <div class="control-row">
+                <label class="control-label">🎭 Genre:</label>
+                <div class="genre-filters" id="genreFilters">
+                    <button class="genre-chip active" data-genre="All">All</button>
+                    <button class="genre-chip" data-genre="Action">Action</button>
+                    <button class="genre-chip" data-genre="Drama">Drama</button>
+                    <button class="genre-chip" data-genre="Science Fiction">Sci-Fi</button>
+                    <button class="genre-chip" data-genre="Thriller">Thriller</button>
+                    <button class="genre-chip" data-genre="Comedy">Comedy</button>
+                    <button class="genre-chip" data-genre="Horror">Horror</button>
+                    <button class="genre-chip" data-genre="Romance">Romance</button>
+                    <button class="genre-chip" data-genre="Animation">Animation</button>
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="count-control">
+                    <label for="resultCount">📊 Results:</label>
+                    <input type="range" id="resultCount" min="5" max="20" value="12" class="count-slider">
+                    <span class="count-value" id="countValue">12</span>
+                </div>
+                <button class="recommend-btn" id="recommendBtn">🎯 FIND RECOMMENDATIONS</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <section class="results-section" id="resultsSection" style="display:none;">
+        <div class="section-heading">
+            <h3 id="resultsHeading">Recommended For You</h3>
+            <div class="heading-line"></div>
+        </div>
+        <div class="movie-grid" id="movieGrid"></div>
+    </section>
+
+    <!-- Skeleton Loading -->
+    <section class="results-section" id="skeletonSection" style="display:none;">
+        <div class="section-heading">
+            <h3>Finding matches...</h3>
+            <div class="heading-line"></div>
+        </div>
+        <div class="movie-grid" id="skeletonGrid"></div>
+    </section>
+
+    <!-- "Because you searched..." horizontal scroll -->
+    <section class="horizontal-section" id="horizontalSection" style="display:none;">
+        <div class="section-heading">
+            <h3 id="horizontalHeading">More like this</h3>
+            <div class="heading-line"></div>
+        </div>
+        <div class="horizontal-scroll" id="horizontalScroll"></div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <p>CINEVIBE © 2025 · Powered by TMDB & AI · 5000+ movies</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

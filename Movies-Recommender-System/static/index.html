@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineVibe — Your Story Starts Here</title>
+    <meta name="description" content="Discover movies crafted for your taste. AI-powered movie recommendations.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="landing-page">
+    <!-- Drifting Poster Wall Background -->
+    <div class="poster-wall-wrap">
+        <div class="poster-wall" id="posterWall"></div>
+    </div>
+    <div class="gradient-overlay"></div>
+
+    <!-- Logo / Navbar -->
+    <nav class="navbar" style="position:fixed;top:0;left:0;right:0;z-index:100;">
+        <a href="/" class="logo">
+            <span class="logo-text">CINEVIBE</span>
+            <span class="logo-dot"></span>
+        </a>
+    </nav>
+
+    <!-- Hero Split Layout -->
+    <main class="hero-split">
+        <!-- LEFT: Featured Movie Backdrop -->
+        <div class="hero-left" id="heroLeft">
+            <div class="hero-backdrop" id="heroBackdrop"></div>
+            <div class="hero-left-fade"></div>
+            <div class="hero-bottom-fade"></div>
+
+            <!-- Featured Pick Overlay -->
+            <div class="featured-overlay-info" id="featuredInfo">
+                <div class="fp-label">🏆 FEATURED PICK</div>
+                <h2 class="fp-title" id="fpTitle"></h2>
+                <div class="fp-pills" id="fpPills"></div>
+                <div class="fp-genres" id="fpGenres"></div>
+                <p class="fp-desc" id="fpDesc"></p>
+            </div>
+        </div>
+
+        <!-- RIGHT: Hero Text + CTA -->
+        <div class="hero-right">
+            <div class="hero-right-glow"></div>
+            <h1 class="hero-heading">YOUR STORY STARTS<br>WITH THE RIGHT MOVIE</h1>
+            <p class="hero-subtext">Discover films crafted for your taste. Powered by AI, made for you.</p>
+            <a href="/recommend" class="cta-button">EXPLORE RECOMMENDATIONS →</a>
+            <div class="genre-pills">
+                <span class="genre-pill">Action</span>
+                <span class="genre-pill">Drama</span>
+                <span class="genre-pill">Sci-Fi</span>
+                <span class="genre-pill">Horror</span>
+                <span class="genre-pill">Romance</span>
+                <span class="genre-pill">Comedy</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        5000+ movies · Real-time recommendations · Zero signups needed
+    </footer>
+
+    <script>
+        const FALLBACK_POSTER = '/no_poster.png';
+
+        // ── Build poster wall (doubled for seamless drift) ──
+        async function loadPosterWall() {
+            const wall = document.getElementById('posterWall');
+            const colors = ['#1a1028','#0f1a2e','#1a0f1e','#0d1f2d','#1f0d1a','#12102a','#1a1520'];
+            const cardCount = 35;
+
+            function createCards() {
+                const frag = document.createDocumentFragment();
+                for (let i = 0; i < cardCount; i++) {
+                    const card = document.createElement('div');
+                    card.className = 'poster-card';
+                    card.style.animationDelay = `${(i % 7) * 0.6}s`;
+                    card.style.background = `linear-gradient(145deg, ${colors[i % 7]}, #0a0a12)`;
+                    frag.appendChild(card);
+                }
+                return frag;
+            }
+
+            // Single set — landing page is static (no doubling needed)
+            wall.appendChild(createCards());
+
+            const allCards = wall.querySelectorAll('.poster-card');
+            allCards.forEach(card => {
+                const img = document.createElement('img');
+                img.src = FALLBACK_POSTER;
+                img.alt = '';
+                img.loading = 'lazy';
+                card.appendChild(img);
+            });
+
+            // Load real posters on top
+            try {
+                const resp = await fetch('/api/popular');
+                const posters = await resp.json();
+                if (!Array.isArray(posters) || posters.length === 0) return;
+                posters.forEach((p, i) => {
+                    if (p.poster) {
+                        if (allCards[i]) {
+                            const img = allCards[i].querySelector('img');
+                            if (img) {
+                                img.onload = () => {
+                                    allCards[i].style.background = 'none';
+                                };
+                                img.onerror = () => {
+                                    img.src = FALLBACK_POSTER;
+                                };
+                                img.src = p.poster;
+                            }
+                        }
+                    }
+                });
+            } catch (e) {}
+        }
+
+        // ── Featured movie auto-rotation ──
+        let featuredMovies = [];
+        let featuredIdx = 0;
+
+        async function loadFeatured() {
+            try {
+                const resp = await fetch('/api/featured');
+                if (!resp.ok) throw new Error('featured endpoint failed');
+                featuredMovies = await resp.json();
+                if (featuredMovies.length > 0) {
+                    showFeatured(0);
+                    if (featuredMovies.length > 1) {
+                        setInterval(() => {
+                            featuredIdx = (featuredIdx + 1) % featuredMovies.length;
+                            crossfadeFeatured(featuredIdx);
+                        }, 6000);
+                    }
+                }
+            } catch (e) {
+                console.error('Featured:', e);
+                document.getElementById('heroBackdrop').style.backgroundImage = `url(${FALLBACK_POSTER})`;
+                document.getElementById('fpTitle').textContent = 'Featured picks unavailable';
+                document.getElementById('fpDesc').textContent = 'The recommendation background is using a local fallback image while the movie API loads.';
+                document.getElementById('featuredInfo').style.opacity = '1';
+            }
+        }
+
+        function showFeatured(idx) {
+            const m = featuredMovies[idx];
+            document.getElementById('heroBackdrop').style.backgroundImage = `url(${m.backdrop})`;
+            document.getElementById('fpTitle').textContent = m.title;
+
+            const pills = [];
+            if (m.year) pills.push(`<span class="fp-pill">${m.year}</span>`);
+            if (m.runtime) pills.push(`<span class="fp-pill">⏱ ${m.runtime}</span>`);
+            if (m.rating) pills.push(`<span class="fp-pill">⭐ ${Number(m.rating).toFixed(1)}</span>`);
+            document.getElementById('fpPills').innerHTML = pills.join('');
+
+            document.getElementById('fpGenres').innerHTML =
+                (m.genres || []).slice(0, 3).map(g => `<span class="fp-genre">${g}</span>`).join('');
+
+            const overview = m.overview || '';
+            document.getElementById('fpDesc').textContent =
+                overview.substring(0, 180) + (overview.length > 180 ? '...' : '');
+
+            document.getElementById('featuredInfo').style.opacity = '1';
+        }
+
+        function crossfadeFeatured(idx) {
+            const info = document.getElementById('featuredInfo');
+            const backdrop = document.getElementById('heroBackdrop');
+
+            // Fade out
+            info.style.opacity = '0';
+            backdrop.style.opacity = '0';
+
+            setTimeout(() => {
+                showFeatured(idx);
+                backdrop.style.opacity = '1';
+            }, 400);
+        }
+
+        loadPosterWall();
+        loadFeatured();
+    </script>
+</body>
+</html>
