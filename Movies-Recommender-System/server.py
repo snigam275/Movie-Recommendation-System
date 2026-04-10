@@ -12,6 +12,8 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +25,12 @@ FALLBACK_POSTER = "/no_poster.png"
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
+
+session = requests.Session()
+retries = Retry(total=5, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+adapter = HTTPAdapter(max_retries=retries, pool_connections=200, pool_maxsize=200)
+session.mount('https://', adapter)
+session.mount('http://', adapter)
 
 # ─── Load ML Data ───────────────────────────────────────────────────────────────
 print("📂 Loading movie data...")
@@ -52,10 +60,7 @@ def fetch_tmdb_details(movie_id, title="Unknown"):
     try:
         try:
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_KEY}"
-            resp = requests.get(url, timeout=2.5)
-            if resp.status_code == 429:
-                time.sleep(1)
-                resp = requests.get(url, timeout=2.5)
+            resp = session.get(url, timeout=12)
             status = resp.status_code
         except Exception:
             status = 500
@@ -66,8 +71,8 @@ def fetch_tmdb_details(movie_id, title="Unknown"):
             if omdb_data is not None:
                 return omdb_data
             try:
-                omdb_data = requests.get(
-                    f"https://www.omdbapi.com/?t={title}&apikey={OMDB_KEY}", timeout=5
+                omdb_data = session.get(
+                    f"https://www.omdbapi.com/?t={title}&apikey={OMDB_KEY}", timeout=10
                 ).json()
             except Exception:
                 omdb_data = {}
@@ -166,7 +171,7 @@ def api_featured():
             continue
         try:
             url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={TMDB_KEY}"
-            resp = requests.get(url, timeout=2.5)
+            resp = session.get(url, timeout=12)
             if resp.status_code != 200:
                 raise ValueError("TMDB failed")
             data = resp.json()
@@ -185,7 +190,7 @@ def api_featured():
         except Exception:
             # Fallback to OMDB
             try:
-                omdb = requests.get(f"https://www.omdbapi.com/?t={title}&apikey={OMDB_KEY}", timeout=3).json()
+                omdb = session.get(f"https://www.omdbapi.com/?t={title}&apikey={OMDB_KEY}", timeout=10).json()
                 if omdb.get("Response") == "True":
                     poster = omdb.get("Poster") if omdb.get("Poster") != "N/A" else FALLBACK_POSTER
                     featured.append({
@@ -289,12 +294,23 @@ def api_popular():
     popular_titles = movies.head(40)['title'].tolist()
 
     results = []
-    for mid, title in zip(popular_ids, popular_titles):
+    
+    def fetch_pop(item):
+        mid, title = item
         details = fetch_tmdb_details(mid, title)
-        if details.get("poster"):
-            results.append({"poster": details["poster"], "title": title})
-        if len(results) >= 28:  # 7 cols × 4 rows
+        if details.get("poster") and details.get("poster") != FALLBACK_POSTER:
+            return {"poster": details["poster"], "title": title}
+        return None
+
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        raw_results = list(ex.map(fetch_pop, zip(popular_ids, popular_titles)))
+        
+    for r in raw_results:
+        if r:
+            results.append(r)
+        if len(results) >= 28:
             break
+            
     return jsonify(results)
 
 
