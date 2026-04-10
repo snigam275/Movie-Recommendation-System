@@ -24,11 +24,75 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── Build Model if needed ──────────────────────────────────────────────────────
+def build_model():
+    import ast
+    import nltk
+    from nltk.stem.porter import PorterStemmer
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity as cos_sim
+
+    DATA_DIR = os.path.join(BASE_DIR, '..', 'DataSetFolder')
+
+    movies_csv = pd.read_csv(os.path.join(DATA_DIR, 'tmdb_5000_movies.csv'))
+    credits_csv = pd.read_csv(os.path.join(DATA_DIR, 'tmdb_5000_credits.csv'))
+    merged = movies_csv.merge(credits_csv, on='title')
+    movie_data = merged[["movie_id","title","overview","genres","keywords","cast","crew"]].copy()
+    movie_data.dropna(inplace=True)
+
+    def extract_names(obj, key='name', max_count=None):
+        parsed = ast.literal_eval(obj) if isinstance(obj, str) else obj
+        names = []
+        for i, item in enumerate(parsed):
+            if max_count and i >= max_count: break
+            if isinstance(item, dict): names.append(item.get(key,''))
+            else: names.append(str(item))
+        return names
+
+    def extract_director(obj):
+        parsed = ast.literal_eval(obj) if isinstance(obj, str) else obj
+        for person in parsed:
+            if person.get('job') == 'Director': return [person['name']]
+        return []
+
+    movie_data['genres']   = movie_data['genres'].apply(lambda x: extract_names(x))
+    movie_data['keywords'] = movie_data['keywords'].apply(lambda x: extract_names(x))
+    movie_data['cast']     = movie_data['cast'].apply(lambda x: extract_names(x, max_count=3))
+    movie_data['crew']     = movie_data['crew'].apply(extract_director)
+    movie_data['overview'] = movie_data['overview'].apply(lambda x: x.split())
+
+    for col in ['genres','keywords','cast','crew']:
+        movie_data[col] = movie_data[col].apply(lambda x: [i.replace(" ","") for i in x])
+
+    movie_data['tag'] = (movie_data['overview'] + movie_data['genres'] +
+                         movie_data['keywords'] + movie_data['cast'] + movie_data['crew'])
+    new_df = movie_data[["movie_id","title","tag"]].copy()
+    new_df['tag'] = new_df['tag'].apply(lambda x: " ".join(x).lower())
+
+    ps = PorterStemmer()
+    new_df['tag'] = new_df['tag'].apply(lambda text: " ".join([ps.stem(w) for w in text.split()]))
+
+    tfidf = TfidfVectorizer(max_features=5000, stop_words='english')
+    vectors = tfidf.fit_transform(new_df['tag']).toarray()
+    sim = cos_sim(vectors)
+
+    pickle.dump(new_df.to_dict(), open(os.path.join(BASE_DIR, 'movies_dict.pkl'), 'wb'))
+    pickle.dump(sim, open(os.path.join(BASE_DIR, 'similarity.pkl'), 'wb'))
+    return new_df, sim
+
 # ─── Load Data ──────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_data():
-    movies_dict = pickle.load(open(os.path.join(BASE_DIR, 'movies_dict.pkl'), 'rb'))
-    similarity = pickle.load(open(os.path.join(BASE_DIR, 'similarity.pkl'), 'rb'))
+    movies_dict_path = os.path.join(BASE_DIR, 'movies_dict.pkl')
+    similarity_path  = os.path.join(BASE_DIR, 'similarity.pkl')
+
+    if not os.path.exists(movies_dict_path) or not os.path.exists(similarity_path):
+        st.info("⚙️ First time setup: Building model... (2-3 mins)")
+        new_df, sim = build_model()
+        return new_df, sim
+
+    movies_dict = pickle.load(open(movies_dict_path, 'rb'))
+    similarity  = pickle.load(open(similarity_path,  'rb'))
     return pd.DataFrame(movies_dict), similarity
 
 movies, similarity = load_data()
