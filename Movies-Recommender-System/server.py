@@ -50,11 +50,15 @@ def fetch_tmdb_details(movie_id, title="Unknown"):
     if not TMDB_KEY:
         return default
     try:
-        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_KEY}"
-        resp = requests.get(url, timeout=8)
-        if resp.status_code == 429:
-            time.sleep(1)
-            resp = requests.get(url, timeout=8)
+        try:
+            url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_KEY}"
+            resp = requests.get(url, timeout=2.5)
+            if resp.status_code == 429:
+                time.sleep(1)
+                resp = requests.get(url, timeout=2.5)
+            status = resp.status_code
+        except Exception:
+            status = 500
 
         omdb_data = None  # Lazy-load OMDB
         def get_omdb():
@@ -69,7 +73,7 @@ def fetch_tmdb_details(movie_id, title="Unknown"):
                 omdb_data = {}
             return omdb_data
 
-        if resp.status_code != 200:
+        if status != 200:
             # TMDB failed entirely — try full OMDB fallback
             omdb = get_omdb()
             if omdb.get("Response") == "True":
@@ -162,9 +166,9 @@ def api_featured():
             continue
         try:
             url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={TMDB_KEY}"
-            resp = requests.get(url, timeout=8)
+            resp = requests.get(url, timeout=2.5)
             if resp.status_code != 200:
-                continue
+                raise ValueError("TMDB failed")
             data = resp.json()
             backdrop = data.get("backdrop_path")
             if not backdrop:
@@ -179,7 +183,22 @@ def api_featured():
                 "overview": data.get("overview", ""),
             })
         except Exception:
-            continue
+            # Fallback to OMDB
+            try:
+                omdb = requests.get(f"https://www.omdbapi.com/?t={title}&apikey={OMDB_KEY}", timeout=3).json()
+                if omdb.get("Response") == "True":
+                    poster = omdb.get("Poster") if omdb.get("Poster") != "N/A" else FALLBACK_POSTER
+                    featured.append({
+                        "title": title,
+                        "backdrop": poster,
+                        "rating": omdb.get("imdbRating"),
+                        "year": omdb.get("Year", ""),
+                        "runtime": omdb.get("Runtime", ""),
+                        "genres": [g.strip() for g in omdb.get("Genre", "").split(",")] if omdb.get("Genre") else [],
+                        "overview": omdb.get("Plot", ""),
+                    })
+            except Exception:
+                continue
     if not featured:
         featured = [
             {
