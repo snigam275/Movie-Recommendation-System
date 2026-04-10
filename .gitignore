@@ -24,5 +24,4 @@ build/
 .DS_Store
 Thumbs.db
 
-Movies-Recommender-System/movies_dict.pkl
 Movies-Recommender-System/similarity.pkl
